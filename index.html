@@ -411,7 +411,7 @@
                 // 1. Upload Gambar langsung ke Cloudinary menggunakan REST API
                 const formData = new FormData();
                 formData.append('file', fileKtp);
-                formData.append('upload_preset', perpust_upload); 
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); 
 
                 const cloudinaryResponse = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
                     method: 'POST',
