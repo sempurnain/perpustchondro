@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="id" class="h-full scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal e-Perpusnas Chondrodimuko</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        national: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        
+        .page { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .page.active { display: block; opacity: 1; }
+        
+        /* Glass Navbar for official look */
+        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; }
+        
+        #loading-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { width: 50px; height: 50px; border: 4px solid #e2e8f0; border-top: 4px solid #1e40af; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .modal { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1rem; }
+        .modal.active { display: flex; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="loading-overlay">
+        <div class="spinner mb-4"></div>
+        <p class="text-sm font-bold text-national-800 tracking-wide animate-pulse">Menghubungkan ke Pusat Data...</p>
+    </div>
+
+    <button id="cart-float-btn" onclick="openModal('cart-modal')" class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-[60] bg-national-700 text-white px-5 py-3 md:px-6 md:py-4 rounded-full flex items-center gap-3 shadow-2xl transition-all hover:bg-national-800 hover:scale-105 border-4 border-white">
+        <span class="text-lg md:text-xl">📚</span>
+        <span class="font-semibold text-xs md:text-sm hidden sm:block">Peminjaman</span>
+        <span id="cart-count" class="bg-rose-500 text-white text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+    </button>
+
+    <nav id="visitor-nav" class="sticky top-0 z-50 glass-nav h-16 md:h-20 flex items-center px-4 md:px-8">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="showPage('home')">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Garuda_Pancasila%2C_Coat_of_Arms_of_Indonesia.svg/480px-Garuda_Pancasila%2C_Coat_of_Arms_of_Indonesia.svg.png" alt="Logo" class="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-sm">
+                <div class="flex flex-col">
+                    <span class="text-[8px] md:text-[10px] font-bold text-national-600 uppercase tracking-widest leading-none">Perpustakaan Standar Nasional</span>
+                    <span class="text-sm md:text-lg font-extrabold text-slate-900 leading-none uppercase mt-0.5">CHONDRODIMUKO</span>
+                </div>
+            </div>
+            
+            <div class="flex md:hidden gap-3">
+                <button onclick="showPage('books')" class="text-national-700 bg-national-50 p-2 rounded-lg text-xs font-bold">Katalog</button>
+                <button onclick="showPage('login')" class="text-slate-500 p-2 text-xl">🔒</button>
+            </div>
+
+            <div class="hidden md:flex items-center gap-8">
+                <button onclick="showPage('home')" class="text-sm font-semibold text-slate-600 hover:text-national-600 transition">Beranda</button>
+                <button onclick="showPage('books')" class="text-sm font-semibold text-slate-600 hover:text-national-600 transition">Katalog Pustaka</button>
+                <div class="h-5 w-[1px] bg-slate-300"></div>
+                <button onclick="showPage('login')" class="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition hover:bg-national-700 shadow-md">
+                    <span>🔒</span> Portal Admin
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main id="main-content">
+        
+        <div id="home-page" class="page active relative overflow-hidden">
+            <div class="bg-gradient-to-b from-national-900 to-national-800 text-white pt-16 pb-24 md:pt-24 md:pb-32 px-6 relative">
+                <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 32px 32px;"></div>
+                
+                <div class="max-w-7xl mx-auto relative z-10 flex flex-col items-center text-center">
+                    <span class="inline-block px-4 py-1 bg-white/10 backdrop-blur-md text-white border border-white/20 text-[10px] md:text-xs font-bold uppercase tracking-widest rounded-full mb-6">Sistem Informasi Perpustakaan Terpadu</span>
+                    <h1 class="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight tracking-tight">Literasi Tanpa Batas <br> <span class="text-national-100">Untuk Negeri.</span></h1>
+                    <p class="text-national-100 text-sm md:text-lg mb-10 max-w-2xl leading-relaxed">Akses ribuan koleksi literatur secara real-time. Terintegrasi dengan Cloud untuk pelayanan peminjaman yang cepat, aman, dan transparan.</p>
+                    
+                    <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                        <button onclick="showPage('books')" class="bg-white text-national-800 px-8 py-4 rounded-xl font-bold shadow-xl hover:bg-slate-50 transition w-full sm:w-auto">Eksplorasi Katalog</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="max-w-7xl mx-auto px-6 -mt-12 relative z-20 pb-20">
+                <div class="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 md:p-10">
+                    <div class="text-center mb-8">
+                        <h2 class="text-2xl font-bold text-slate-800">Koleksi Berdasarkan Kategori</h2>
+                        <p class="text-sm text-slate-500 mt-1">Total ketersediaan judul literatur saat ini</p>
+                    </div>
+                    
+                    <div id="category-stats-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        <div class="col-span-full text-center py-8 text-slate-400 text-sm animate-pulse">Memuat statistik data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="books-page" class="page px-4 md:px-8 py-10 md:py-16 bg-slate-50 min-h-screen">
+            <div class="max-w-7xl mx-auto">
+                
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Katalog Utama PUSNAS</h2>
+                        <p class="text-slate-500 text-xs md:text-sm mt-1">Disinkronisasikan langsung dari Master Data Google Sheets.</p>
+                    </div>
+                    <div class="relative w-full md:w-80">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                        <input type="text" id="main-search" oninput="renderBooks()" placeholder="Cari judul, penulis, kategori..." class="w-full pl-10 pr-4 py-3 md:py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-national-500 focus:border-national-500 shadow-sm text-sm transition-all">
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm min-w-[800px]">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Detail Buku</th>
+                                    <th class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Kategori</th>
+                                    <th class="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Stok</th>
+                                    <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="books-table-body" class="divide-y divide-slate-100">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="login-page" class="page px-4 py-16 md:py-24 min-h-screen flex items-center justify-center">
+            <div class="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-slate-200 shadow-2xl text-center relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-2 bg-national-600"></div>
+                
+                <div class="w-16 h-16 bg-national-50 border border-national-100 text-national-600 rounded-2xl flex items-center justify-center mx-auto mb-6 text-2xl shadow-sm">🛡️</div>
+                <h2 class="text-xl md:text-2xl font-extrabold text-slate-900 mb-1">Akses Pustakawan</h2>
+                <p class="text-xs md:text-sm text-slate-500 mb-8">Terotentikasi oleh sistem keamanan Firebase</p>
+                
+                <form onsubmit="handleFirebaseLogin(event)" class="space-y-4">
+                    <input type="email" id="email-input" placeholder="Email Admin PUSNAS" required class="w-full p-3.5 bg-slate-50 border rounded-xl outline-none focus:border-national-600 focus:ring-1 focus:ring-national-600 text-sm">
+                    <input type="password" id="pass-input" placeholder="Kata Sandi Firebase" required class="w-full p-3.5 bg-slate-50 border rounded-xl outline-none focus:border-national-600 focus:ring-1 focus:ring-national-600 text-sm">
+                    <button type="submit" class="w-full bg-slate-900 text-white py-3.5 rounded-xl text-sm font-bold shadow-md hover:bg-national-700 transition">MASUK DASHBOARD</button>
+                    <p id="login-error" class="text-rose-500 text-xs font-bold hidden mt-2"></p>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <div id="admin-layout" class="hidden flex h-screen overflow-hidden bg-slate-50">
+        <aside class="w-64 md:w-72 bg-slate-900 flex-shrink-0 flex flex-col text-white hidden md:flex border-r border-slate-800 shadow-2xl z-20">
+            <div class="p-6 md:p-8 border-b border-slate-800">
+                <h3 class="font-extrabold text-lg md:text-xl tracking-tight">Admin PUSNAS</h3>
+                <p class="text-[10px] md:text-xs text-slate-400 mt-1" id="admin-email-display">admin@mail.com</p>
+            </div>
+            <nav class="flex-1 p-4 md:p-6 space-y-2">
+                <button onclick="showAdminTab('request')" class="w-full flex items-center justify-between px-4 py-3 bg-national-600 rounded-lg text-sm font-medium shadow-md">
+                    <span class="flex items-center gap-2">🔄 Peminjaman</span>
+                    <span id="req-badge" class="bg-white text-national-700 text-[10px] px-2 py-0.5 rounded-full font-black">0</span>
+                </button>
+                <button onclick="showAdminTab('stok')" class="w-full flex items-center gap-2 px-4 py-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all text-sm font-medium">
+                    📊 Buku (G-Sheets)
+                </button>
+            </nav>
+            <div class="p-4 md:p-6 border-t border-slate-800">
+                <button onclick="handleFirebaseLogout()" class="w-full bg-rose-500/10 border border-rose-500/20 text-rose-400 py-2.5 rounded-lg text-xs font-bold hover:bg-rose-500 hover:text-white transition-all">Keluar Sesi</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 w-full">
+            <div class="md:hidden flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl mb-6 shadow-lg">
+                <h3 class="font-bold text-sm">Admin PUSNAS</h3>
+                <div class="flex gap-2">
+                    <button onclick="showAdminTab('request')" class="bg-national-600 px-3 py-1.5 rounded text-[10px] font-bold">Peminjaman</button>
+                    <button onclick="handleFirebaseLogout()" class="bg-rose-600 px-3 py-1.5 rounded text-[10px] font-bold">Keluar</button>
+                </div>
+            </div>
+
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-900 mb-6" id="admin-title">Antrean Peminjaman Aktif</h2>
+            
+            <div id="tab-request" class="admin-tab">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm min-w-[700px]">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-4 font-bold text-slate-500 text-xs uppercase">Pemustaka</th>
+                                    <th class="px-6 py-4 font-bold text-slate-500 text-xs uppercase">Literatur Diminta</th>
+                                    <th class="px-6 py-4 font-bold text-slate-500 text-xs uppercase">Status</th>
+                                    <th class="px-6 py-4 text-right font-bold text-slate-500 text-xs uppercase">Tindakan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-requests-table" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-stok" class="admin-tab hidden">
+                <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 flex items-start gap-3">
+                    <span class="text-blue-600">ℹ️</span>
+                    <p class="text-xs text-blue-800 leading-relaxed">Penambahan, pengeditan, atau penghapusan buku dilakukan secara terpusat melalui <b>Google Sheets</b>. Perubahan di Sheets akan otomatis tersinkronisasi ke sistem ini.</p>
+                </div>
+                <div class="bg-white rounded-xl border shadow-sm p-4 md:p-6" id="admin-books-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="cart-modal" class="modal">
+        <div class="bg-white w-full max-w-md p-6 md:p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal('cart-modal')" class="absolute top-4 right-4 md:top-6 md:right-6 text-slate-400 hover:text-slate-800 font-bold bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+            <h3 class="text-lg md:text-xl font-extrabold text-slate-900 mb-6 border-b pb-4">Formulir Peminjaman PUSNAS</h3>
+            
+            <div id="cart-items" class="space-y-2 mb-6 max-h-48 overflow-y-auto text-sm pr-2">
+                </div>
+
+            <form onsubmit="submitPeminjaman(event)" class="space-y-4 bg-slate-50 p-4 md:p-5 rounded-xl border border-slate-200">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nama Lengkap Pemustaka</label>
+                    <input type="text" id="peminjam-nama" required class="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:border-national-600 focus:ring-1 focus:ring-national-600 text-sm">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nomor Induk / NIK</label>
+                    <input type="text" id="peminjam-id" required class="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:border-national-600 focus:ring-1 focus:ring-national-600 text-sm">
+                </div>
+                <button type="submit" class="w-full bg-national-600 text-white py-3 rounded-lg font-bold shadow-md hover:bg-national-700 text-sm mt-2 transition">Kirim Pengajuan</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. KONFIGURASI FIREBASE ASLI ANDA
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqwEZUwycI41OrgS8fCf_506ubmLWmSko",
+            authDomain: "perpustakaan-chondro.firebaseapp.com",
+            projectId: "perpustakaan-chondro",
+            storageBucket: "perpustakaan-chondro.firebasestorage.app",
+            messagingSenderId: "110663006921",
+            appId: "1:110663006921:web:9e6c6a85f1d68531c26b18",
+            measurementId: "G-BZ2LCW3D5K"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ==========================================
+        // 2. KONFIGURASI GOOGLE SHEETS
+        // ==========================================
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbwqSnZi29XKdakmGTEXJ6dXUzftIMRbf0o6vQykUoUX4hAhxcG2jCOlBCy992J4oOPGxg/exec";
+        
+        let allBooks = []; 
+        let cart = []; 
+
+        // ==========================================
+        // 3. FUNGSI DATA BUKU & STATISTIK BERANDA
+        // ==========================================
+        async function fetchBooks() {
+            showLoading(true);
+            try {
+                const response = await fetch(`${SHEET_API_URL}?sheet=buku`);
+                const data = await response.json();
+                allBooks = data.map((b, index) => ({ 
+                    id: index, title: b.judul, author: b.penulis, category: (b.kategori || 'Umum').trim(), stock: parseInt(b.stok) || 0 
+                }));
+                
+                renderBooks();
+                renderCategoryStats(); 
+            } catch (error) { 
+                console.error("Gagal mengambil data dari Sheets:", error); 
+                document.getElementById('category-stats-container').innerHTML = `<div class="col-span-full text-rose-500 text-sm text-center">Gagal memuat data statistik. Cek koneksi API.</div>`;
+            }
+            showLoading(false);
+        }
+
+        function renderCategoryStats() {
+            const container = document.getElementById('category-stats-container');
+            if(!container) return;
+
+            const categoryCounts = {};
+            allBooks.forEach(b => {
+                const cat = b.category.toUpperCase();
+                categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            });
+
+            const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+
+            if(sortedCategories.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-slate-500 text-sm text-center">Belum ada data buku.</div>`;
+                return;
+            }
+
+            container.innerHTML = sortedCategories.map(([cat, count]) => `
+                <div class="bg-slate-50 border border-slate-100 p-5 rounded-xl hover:shadow-md transition-shadow flex flex-col items-center justify-center text-center group cursor-default">
+                    <div class="w-10 h-10 bg-national-100 text-national-600 rounded-lg flex items-center justify-center mb-3 text-lg group-hover:bg-national-600 group-hover:text-white transition-colors">📑</div>
+                    <h4 class="text-xs font-bold text-slate-600 mb-1 tracking-wide uppercase line-clamp-1 w-full">${cat}</h4>
+                    <p class="text-2xl font-black text-slate-900 leading-none">${count} <span class="text-[10px] text-slate-400 font-normal">Judul</span></p>
+                </div>
+            `).join('');
+        }
+
+        function renderBooks() {
+            const q = document.getElementById('main-search')?.value.toLowerCase() || '';
+            const tbody = document.getElementById('books-table-body');
+            const adminList = document.getElementById('admin-books-list');
+            
+            const filtered = allBooks.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q) || b.category.toLowerCase().includes(q));
+            
+            if (tbody) {
+                tbody.innerHTML = filtered.map(b => `
+                <tr class="hover:bg-national-50/50 transition-colors">
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800 text-sm line-clamp-2">${b.title}</div>
+                        <div class="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">Oleh: ${b.author}</div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap">${b.category}</span>
+                    </td>
+                    <td class="px-6 py-4 text-center font-black text-slate-700 text-sm">${b.stock}</td>
+                    <td class="px-6 py-4 text-right">
+                        ${b.stock > 0 
+                            ? `<button onclick="addToCart('${b.title.replace(/'/g, "\\'")}')" class="bg-white border border-national-500 text-national-600 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs font-bold hover:bg-national-600 hover:text-white shadow-sm transition whitespace-nowrap">Pinjam Buku</button>` 
+                            : `<span class="bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap">Stok Habis</span>`
+                        }
+                    </td>
+                </tr>`).join('');
+            }
+
+            if (adminList) {
+                adminList.innerHTML = filtered.map(b => `
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center py-3 border-b border-slate-100 last:border-0 gap-2">
+                    <div>
+                        <p class="font-bold text-slate-800 text-sm line-clamp-1">${b.title}</p>
+                        <p class="text-xs text-slate-400">Kategori: ${b.category} | Sisa Stok Fisik: <span class="font-bold text-slate-700">${b.stock}</span></p>
+                    </div>
+                    <span class="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded font-bold whitespace-nowrap self-start sm:self-auto">Status: Sync OK</span>
+                </div>`).join('');
+            }
+        }
+
+        // ==========================================
+        // 4. KERANJANG & PEMINJAMAN (PENGUNJUNG)
+        // ==========================================
+        function addToCart(title) {
+            if(!cart.includes(title)) {
+                cart.push(title);
+                updateCartUI();
+                const btn = document.getElementById('cart-float-btn');
+                btn.classList.add('scale-110', 'bg-emerald-500');
+                setTimeout(() => btn.classList.remove('scale-110', 'bg-emerald-500'), 300);
+            } else {
+                alert("Literatur ini sudah ada dalam daftar pengajuan Anda.");
+            }
+        }
+
+        function removeCartItem(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            document.getElementById('cart-count').textContent = cart.length;
+            const cartItemsContainer = document.getElementById('cart-items');
+            
+            if(cart.length === 0) {
+                cartItemsContainer.innerHTML = "<div class='text-slate-400 italic text-center text-xs py-4'>Belum ada literatur yang dipilih</div>";
+                return;
+            }
+
+            cartItemsContainer.innerHTML = cart.map((item, idx) => `
+                <div class="flex justify-between items-center bg-white border border-slate-200 p-2.5 rounded-lg">
+                    <span class="font-semibold text-slate-700 text-xs truncate mr-2" title="${item}">${item}</span>
+                    <button type="button" onclick="removeCartItem(${idx})" class="text-rose-500 bg-rose-50 px-2 py-1 rounded text-[10px] font-bold hover:bg-rose-500 hover:text-white transition">Hapus</button>
+                </div>
+            `).join('');
+        }
+
+        async function submitPeminjaman(e) {
+            e.preventDefault();
+            if(cart.length === 0) return alert("Silakan pilih minimal 1 buku dari Katalog terlebih dahulu.");
+
+            const nama = document.getElementById('peminjam-nama').value;
+            const idAnggota = document.getElementById('peminjam-id').value;
+
+            showLoading(true);
+            try {
+                await db.collection("peminjaman").add({
+                    nama: nama,
+                    idAnggota: idAnggota,
+                    buku: cart,
+                    status: "Diproses",
+                    tanggal: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                alert("Pengajuan peminjaman berhasil direkam sistem! Silakan menuju meja sirkulasi.");
+                cart = [];
+                updateCartUI();
+                closeModal('cart-modal');
+                document.getElementById('peminjam-nama').value = '';
+                document.getElementById('peminjam-id').value = '';
+            } catch (error) {
+                console.error("Kesalahan Firebase:", error);
+                alert("Terjadi kegagalan komunikasi dengan server. Coba beberapa saat lagi.");
+            }
+            showLoading(false);
+        }
+
+        // ==========================================
+        // 5. FIREBASE AUTH & ADMIN
+        // ==========================================
+        async function handleFirebaseLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('email-input').value;
+            const pass = document.getElementById('pass-input').value;
+            const errorTxt = document.getElementById('login-error');
+
+            showLoading(true);
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(email, pass);
+                document.getElementById('visitor-nav').classList.add('hidden');
+                document.getElementById('main-content').classList.add('hidden');
+                document.getElementById('admin-layout').classList.remove('hidden');
+                document.getElementById('admin-email-display').textContent = userCredential.user.email;
+                errorTxt.classList.add('hidden');
+                
+                listenToPeminjaman();
+            } catch (error) {
+                errorTxt.textContent = "Kredensial tidak valid. Akses ditolak.";
+                errorTxt.classList.remove('hidden');
+            }
+            showLoading(false);
+        }
+
+        function handleFirebaseLogout() {
+            auth.signOut().then(() => window.location.reload());
+        }
+
+        function listenToPeminjaman() {
+            db.collection("peminjaman").orderBy("tanggal", "desc").onSnapshot((snapshot) => {
+                const tbody = document.getElementById('admin-requests-table');
+                
+                const pendingCount = snapshot.docs.filter(doc => doc.data().status === 'Diproses').length;
+                document.getElementById('req-badge').textContent = pendingCount;
+                
+                tbody.innerHTML = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    const isApproved = data.status === 'Disetujui';
+                    const statusClass = isApproved ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200';
+                    
+                    return `
+                    <tr class="hover:bg-slate-50 border-b border-slate-50 last:border-0">
+                        <td class="px-6 py-4">
+                            <p class="font-bold text-slate-800 text-sm">${data.nama}</p>
+                            <p class="text-[10px] font-mono text-slate-400 mt-1">${data.idAnggota}</p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <ul class="list-disc list-inside text-xs font-medium text-slate-600 space-y-1">
+                                ${data.buku.map(b => `<li class="line-clamp-1" title="${b}">${b}</li>`).join('')}
+                            </ul>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded border text-[10px] font-bold uppercase tracking-wide ${statusClass}">${data.status}</span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            ${!isApproved ? 
+                            `<button onclick="setujuiPeminjaman('${doc.id}')" class="bg-national-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-national-700 transition shadow-sm">Setujui</button>` 
+                            : `<span class="text-slate-400 text-xs italic font-semibold">Tuntas</span>`}
+                        </td>
+                    </tr>`;
+                }).join('');
+            });
+        }
+
+        async function setujuiPeminjaman(docId) {
+            try {
+                await db.collection("peminjaman").doc(docId).update({ status: "Disetujui" });
+            } catch (error) {
+                console.error("Gagal pembaruan status:", error);
+            }
+        }
+
+        // ==========================================
+        // 6. UTILITIES (UI/UX)
+        // ==========================================
+        function showPage(id) { 
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
+            setTimeout(() => {
+                document.getElementById(id + '-page').classList.add('active'); 
+                window.scrollTo({top: 0, behavior: 'smooth'}); 
+            }, 50);
+        }
+        
+        function showAdminTab(id) {
+            document.querySelectorAll('.admin-tab').forEach(t => t.classList.add('hidden'));
+            document.getElementById(`tab-${id}`).classList.remove('hidden');
+            document.getElementById('admin-title').textContent = id === 'request' ? 'Antrean Peminjaman Aktif' : 'Master Katalog (G-Sheets)';
+        }
+        
+        function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
+        function openModal(id) { document.getElementById(id).classList.add('active'); updateCartUI(); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        window.onload = () => { fetchBooks(); };
+
+        auth.onAuthStateChanged((user) => {
+            if (user && !document.getElementById('admin-layout').classList.contains('hidden') === false) {
+                document.getElementById('visitor-nav').classList.add('hidden');
+                document.getElementById('main-content').classList.add('hidden');
+                document.getElementById('admin-layout').classList.remove('hidden');
+                document.getElementById('admin-email-display').textContent = user.email;
+                listenToPeminjaman();
+            }
+        });
+    </script>
+</body>
+</html>
